@@ -278,6 +278,14 @@ export async function executeCheckout({
         `Order Placed Successfully! (${invoiceNumber})`,
         `Your order of ₹${calc.grand_total.toFixed(2)} has been placed. Payment Method: ${isDemo ? 'Demo Payment' : paymentMethod}.`
       );
+
+      // Clear user database cart upon successful order
+      try {
+        const userCart = db.prepare('SELECT id FROM carts WHERE user_id = ?').get(userId);
+        if (userCart) {
+          db.prepare('DELETE FROM cart_items WHERE cart_id = ?').run(userCart.id);
+        }
+      } catch (e) {}
     }
 
     // Low stock notifications

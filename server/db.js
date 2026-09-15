@@ -12,7 +12,15 @@ if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
-const DB_PATH = path.join(DATA_DIR, 'supermarket.db');
+const DB_PATH = process.env.DATABASE_PATH
+  ? path.resolve(process.cwd(), process.env.DATABASE_PATH)
+  : path.join(DATA_DIR, 'supermarket.db');
+
+const dbParentDir = path.dirname(DB_PATH);
+if (!fs.existsSync(dbParentDir)) {
+  fs.mkdirSync(dbParentDir, { recursive: true });
+}
+
 export const db = new DatabaseSync(DB_PATH);
 
 function hashPassword(password) {
@@ -251,6 +259,24 @@ export function initDatabase() {
       draft_json TEXT NOT NULL,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS carts (
+      id TEXT PRIMARY KEY,
+      user_id TEXT UNIQUE NOT NULL,
+      store_id TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS cart_items (
+      id TEXT PRIMARY KEY,
+      cart_id TEXT NOT NULL,
+      product_id TEXT NOT NULL,
+      quantity REAL NOT NULL DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(cart_id, product_id)
+    );
   `);
 
   // Migration/Safety checks for columns and constraints
@@ -298,6 +324,9 @@ export function initDatabase() {
     }
     if (!saleInfo.some(col => col.name === 'payment_method')) {
       db.exec(`ALTER TABLE sales ADD COLUMN payment_method TEXT`);
+    }
+    if (!saleInfo.some(col => col.name === 'status')) {
+      db.exec(`ALTER TABLE sales ADD COLUMN status TEXT DEFAULT 'PAID_RECORDED'`);
     }
   } catch (e) {}
 
