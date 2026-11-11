@@ -1,10 +1,27 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Ensure isolated test database BEFORE importing app/db
+const testDbName = `test_isolated_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.db`;
+const testDbPath = path.join(__dirname, '..', 'data', testDbName);
+const prodDbPath = path.join(__dirname, '..', 'data', 'supermarket.db');
+
+if (fs.existsSync(prodDbPath)) {
+  fs.copyFileSync(prodDbPath, testDbPath);
+}
+
+process.env.DATABASE_PATH = path.relative(process.cwd(), testDbPath);
 process.env.TEST_MODE = '1';
 process.env.PORT = '0'; // Ephemeral port for isolated testing
 
 import http from 'node:http';
-import { app } from './index.js';
-import { db } from './db.js';
-import { verifyJwt } from './services/auth.js';
+const { app } = await import('./index.js');
+const { db } = await import('./db.js');
+const { verifyJwt } = await import('./services/auth.js');
 
 console.log('====================================================');
 console.log('🧪 NEBULA SUPERMARKET - FULL BACKEND INTEGRATION TEST');
@@ -339,14 +356,23 @@ async function runTests() {
     console.log('\n====================================================');
     console.log('🎉 ALL TESTS PASSED SUCCESSFULLY! BACKEND 100% READY');
     console.log('====================================================\n');
-    process.exit(0);
   } catch (err) {
     console.error('\n❌ TEST SUITE FAILED WITH ERROR:', err);
-    process.exit(1);
+    process.exitCode = 1;
   } finally {
     if (server) server.close();
+    try {
+      db.close();
+    } catch (_) {}
+    if (testDbPath && testDbPath.includes('test_isolated_') && fs.existsSync(testDbPath)) {
+      try {
+        fs.unlinkSync(testDbPath);
+      } catch (cleanupErr) {
+        console.warn('Could not remove temporary test DB:', cleanupErr.message);
+      }
+    }
   }
 }
 
-runTests();
+await runTests();
 
