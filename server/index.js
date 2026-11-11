@@ -1340,6 +1340,28 @@ app.all('/api/*', (req, res) => {
   res.status(404).json({ success: false, error: `API endpoint ${req.method} ${req.originalUrl} not found.` });
 });
 
+/* =========================================================================
+   FRONTEND STATIC SERVING & REACT SPA FALLBACK
+========================================================================= */
+const DIST_DIR = path.resolve(__dirname, '..', 'dist');
+
+// Serve static frontend assets from dist (compiled Vite bundle)
+app.use(express.static(DIST_DIR));
+app.use('/assets', express.static(path.join(DIST_DIR, 'assets')));
+
+// React SPA fallback routing for non-API client routes (e.g. /, /dashboard)
+app.get('*', (req, res, next) => {
+  // Never intercept API routes or explicit asset requests
+  if (req.path.startsWith('/api') || req.path.startsWith('/assets') || req.path.startsWith('/invoices')) {
+    return next();
+  }
+  const indexPath = path.join(DIST_DIR, 'index.html');
+  if (fs.existsSync(indexPath)) {
+    return res.sendFile(indexPath);
+  }
+  next();
+});
+
 // Centralized Error Handling Middleware (Rule & Step 9 Compliant)
 app.use((err, req, res, next) => {
   console.error('💥 Unhandled Server Error:', err);
@@ -1357,5 +1379,6 @@ if (isDirectRun) {
     console.log(`🚀 Nebula Supermarket Backend running on port ${PORT}`);
     console.log(`📡 Real-time SSE stream available at http://localhost:${PORT}/events`);
     console.log(`📄 Invoices stored and served at http://localhost:${PORT}/invoices/`);
+    console.log(`🌐 Frontend serving enabled from ${DIST_DIR}`);
   });
 }
